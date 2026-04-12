@@ -1,0 +1,56 @@
+name: Docker Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build Docker image
+      run: |
+        docker build -t mininet-standalone .
+        
+    - name: Test Docker image
+      run: |
+        echo "Testing container startup..."
+        docker run --rm --privileged mininet-standalone echo "Container starts successfully"
+        
+        echo "Testing Mininet installation..."
+        docker run --rm --privileged mininet-standalone mn --version
+        
+        echo "Testing Ryu installation..."
+        docker run --rm --privileged mininet-standalone ryu-manager --version
+        
+        echo "Testing Python..."
+        docker run --rm --privileged mininet-standalone python3 --version
+        
+        echo "Testing Python examples syntax..."
+        docker run --rm --privileged mininet-standalone python3 -m py_compile /app/examples/simple_controller.py
+        docker run --rm --privileged mininet-standalone python3 -m py_compile /app/examples/simple_topology.py
+        
+    - name: Test Makefile commands
+      run: |
+        echo "Testing Makefile build..."
+        make build
+        
+        echo "Testing basic functionality..."
+        make test
+        
+    - name: Test docker-run.sh script
+      run: |
+        echo "Testing docker-run.sh build..."
+        ./docker-run.sh build
+        
+        echo "Testing script help..."
+        ./docker-run.sh help

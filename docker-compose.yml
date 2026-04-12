@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  mininet:
+    build: .
+    container_name: mininet-dev
+    privileged: true
+    network_mode: host
+    volumes:
+      - ./projects:/app/projects
+      - /lib/modules:/lib/modules:ro
+    environment:
+      - DISPLAY=${DISPLAY:-}
+    stdin_open: true
+    tty: true
+    command: /bin/bash
