@@ -3,55 +3,15 @@
 advanced_topology.py — 3-Zone SDN Topology for ML Intrusion Detection
 CS 8027: Advanced Networking Architecture
 
-ROOT-CAUSE FIX (pingall 73% drop) — carried forward from v2
-─────────────────────────────────────────────────────────────
-Previous version used three separate /24 subnets (10.0.1.x, 10.0.2.x,
-10.0.3.x).  Mininet's SDN controller installs *L2* (MAC-based) flow rules
-— it does not act as an IP router.  Cross-subnet traffic was silently
-dropped because no gateway existed, even though L2 connectivity was fine.
-
-Fix: single flat subnet 10.0.0.0/24 for all hosts.  Zone separation is
-preserved at the *switch level* (s1=user, s2=server, s3=attacker), which is
-all the ML controller needs to observe the correct traffic patterns.
-
-BUG FIX (this revision)
-─────────────────────────
-_fix_htb_quantum() previously called `net.values()`.  Mininet does NOT
-expose a `.values()` method — it provides `__iter__` (yields node *names*)
-and `__getitem__`.  Calling `.values()` raises AttributeError immediately,
-preventing HTB quantum correction and producing a traceback.
-Fix: iterate over `net.hosts + net.switches` which returns the actual node
-objects.
-
-IP map
-──────
-  h1        10.0.0.1   (user zone,     s1)
-  h2        10.0.0.2   (user zone,     s1)
-  h3        10.0.0.3   (user zone,     s1)
-  web_srv   10.0.0.10  (server zone,   s2)
-  db_srv    10.0.0.11  (server zone,   s2)
-  h_attack  10.0.0.20  (attacker zone, s3)
-
-Topology diagram
-────────────────
-                    ┌─────────────┐
-                    │  s_core(s4) │  1 Gbit/s backbone
-                    └──┬────┬──┬──┘
-                       │    │  │
-              ┌────────┘ ┌──┘  └──────────┐
-              ▼          ▼                 ▼
-         ┌────────┐ ┌──────────┐  ┌────────────┐
-         │ s_user │ │ s_server │  │ s_attacker │
-         │  (s1)  │ │   (s2)   │  │    (s3)    │
-         └─┬─┬─┬──┘ └──┬────┬──┘  └─────┬──────┘
-           │ │ │       │    │            │
-          h1 h2 h3  web_srv db_srv   h_attack
-       .0.1 .0.2 .0.3  .0.10 .0.11     .0.20
-                   (all 10.0.0.x/24)
+UNRESTRICTED BANDWIDTH EDITION
+──────────────────────────────
+Bandwidth limits (bw=...) and traffic shaping (use_htb=True) have been completely
+removed. Links will now run as fast as the host CPU allows. This bridges the
+"domain shift" gap, allowing the OpenFlow switch to report realistic flood rates
+(>50,000 pps) to the Ryu controller so the ML model can detect them properly.
 """
 
 import argparse
-import subprocess
 
 from mininet.cli import CLI
 from mininet.link import TCLink
@@ -62,55 +22,7 @@ from mininet.node import OVSKernelSwitch, RemoteController
 # ── Parameters ─────────────────────────────────────────────────────────────────
 CONTROLLER_IP = "127.0.0.1"
 CONTROLLER_PORT = 6653
-
-BW_USER = 10  # Mbit/s — user-zone access links
-BW_SERVER = 100  # Mbit/s — server-zone access links
-BW_ATTACKER = 100  # Mbit/s — attacker-zone access link
-BW_CORE = 1000  # Mbit/s — inter-switch backbone
 LINK_DELAY = "2ms"
-
-
-def _fix_htb_quantum(net):
-    """
-    Silence `sch_htb: quantum too big` kernel warnings on high-bandwidth links.
-
-    HTB's default quantum (= MTU, typically 1514 bytes) is flagged as too
-    small for links above ~100 Mbit/s.  Setting r2q=3000 raises the effective
-    quantum to 33 kB, well within HTB's accepted range for 1 Gbit/s links.
-
-    BUG FIX: Previous version called `net.values()` which does not exist on
-    Mininet objects.  Mininet exposes nodes through `net.hosts`, `net.switches`,
-    and `net.controllers` — iterate over hosts + switches directly.
-    """
-    for node in net.hosts + net.switches:
-        for intf in node.intfList():
-            if intf.name == "lo":
-                continue
-            try:
-                out = subprocess.check_output(
-                    ["tc", "qdisc", "show", "dev", intf.name],
-                    stderr=subprocess.DEVNULL,
-                ).decode()
-                if "htb" in out:
-                    subprocess.call(
-                        [
-                            "tc",
-                            "qdisc",
-                            "change",
-                            "dev",
-                            intf.name,
-                            "root",
-                            "handle",
-                            "1:",
-                            "htb",
-                            "r2q",
-                            "3000",
-                        ],
-                        stderr=subprocess.DEVNULL,
-                    )
-            except Exception:
-                # Interface may not have an HTB qdisc — safe to ignore
-                pass
 
 
 def build_and_run(controller_ip: str = CONTROLLER_IP) -> None:
@@ -119,7 +31,6 @@ def build_and_run(controller_ip: str = CONTROLLER_IP) -> None:
         switch=OVSKernelSwitch,
         link=TCLink,
         autoSetMacs=True,  # deterministic link MACs; per-host `mac=`
-        # parameters set below override this for hosts
     )
 
     # ── Controller ─────────────────────────────────────────────────────────────
@@ -147,29 +58,26 @@ def build_and_run(controller_ip: str = CONTROLLER_IP) -> None:
     # Attacker zone (s3)
     h_attack = net.addHost("h_attack", ip="10.0.0.20/24", mac="00:00:00:00:00:20")
 
-    # ── Link parameter dictionaries ────────────────────────────────────────────
-    u = dict(bw=BW_USER, delay=LINK_DELAY, use_htb=True)
-    sv = dict(bw=BW_SERVER, delay=LINK_DELAY, use_htb=True)
-    at = dict(bw=BW_ATTACKER, delay=LINK_DELAY, use_htb=True)
-    co = dict(bw=BW_CORE, delay=LINK_DELAY, use_htb=True)
+    # ── Link parameter dictionaries (NO BANDWIDTH LIMITS) ──────────────────────
+    # We only apply a small delay to simulate network latency.
+    link_opts = dict(delay=LINK_DELAY)
 
     # Host → access switch
-    net.addLink(h1, s_user, **u)
-    net.addLink(h2, s_user, **u)
-    net.addLink(h3, s_user, **u)
-    net.addLink(web_srv, s_server, **sv)
-    net.addLink(db_srv, s_server, **sv)
-    net.addLink(h_attack, s_attacker, **at)
+    net.addLink(h1, s_user, **link_opts)
+    net.addLink(h2, s_user, **link_opts)
+    net.addLink(h3, s_user, **link_opts)
+    net.addLink(web_srv, s_server, **link_opts)
+    net.addLink(db_srv, s_server, **link_opts)
+    net.addLink(h_attack, s_attacker, **link_opts)
 
     # Access switch → core switch
-    net.addLink(s_user, s_core, **co)
-    net.addLink(s_server, s_core, **co)
-    net.addLink(s_attacker, s_core, **co)
+    net.addLink(s_user, s_core, **link_opts)
+    net.addLink(s_server, s_core, **link_opts)
+    net.addLink(s_attacker, s_core, **link_opts)
 
     # ── Start ──────────────────────────────────────────────────────────────────
     info("*** Starting network\n")
     net.start()
-    _fix_htb_quantum(net)
     _print_guide()
     CLI(net)
     net.stop()
@@ -185,12 +93,12 @@ def _print_guide() -> None:
   ┌─────────────────────────────────────────────────────────────┐
   │ Host        IP            Zone      Switch  Bandwidth       │
   ├─────────────────────────────────────────────────────────────┤
-  │ h1          10.0.0.1      User      s1      10  Mbit/s      │
-  │ h2          10.0.0.2      User      s1      10  Mbit/s      │
-  │ h3          10.0.0.3      User      s1      10  Mbit/s      │
-  │ web_srv     10.0.0.10     Server    s2      100 Mbit/s      │
-  │ db_srv      10.0.0.11     Server    s2      100 Mbit/s      │
-  │ h_attack    10.0.0.20     Attacker  s3      100 Mbit/s      │
+  │ h1          10.0.0.1      User      s1      Unlimited       │
+  │ h2          10.0.0.2      User      s1      Unlimited       │
+  │ h3          10.0.0.3      User      s1      Unlimited       │
+  │ web_srv     10.0.0.10     Server    s2      Unlimited       │
+  │ db_srv      10.0.0.11     Server    s2      Unlimited       │
+  │ h_attack    10.0.0.20     Attacker  s3      Unlimited       │
   └─────────────────────────────────────────────────────────────┘
 
   STEP 1 — Verify full connectivity (expect 0% drop)
@@ -212,7 +120,7 @@ def _print_guide() -> None:
   ───────────────────────────────────────────────────────────
   [A] UDP flood (high-volume datagram flood)
       mininet> web_srv iperf -s -u &
-      mininet> h_attack iperf -c 10.0.0.10 -u -b 500M -t 30
+      mininet> h_attack iperf -c 10.0.0.10 -u -b 1000M -t 30
 
   [B] SYN flood (TCP half-open exhaustion)
       mininet> h_attack hping3 -S --flood -p 80 10.0.0.10
