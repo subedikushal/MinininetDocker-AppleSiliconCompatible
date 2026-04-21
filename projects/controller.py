@@ -1,39 +1,6 @@
-"""
-controller.py — ML-Driven Ryu SDN Intrusion Detection Controller
-CS 8027: Advanced Networking Architecture
-
-Design principles
-─────────────────
-• NO StandardScaler — all 4 candidate models are tree-based and
-  scale-invariant.  Raw feature values are fed directly to the model,
-  exactly as they were during training.
-
-• Flow Duration in SECONDS — the training notebook converts CICFlowMeter's
-  µs values to seconds before fitting, so OpenFlow's
-  `duration_sec + duration_nsec/1e9` can be used directly at inference.
-  No multiplication by 1e6 is needed anywhere in this file.
-
-• Model selection via model_info.json — the training notebook saves a
-  JSON manifest that records which .joblib file is the winner, what
-  features to use, and what decision threshold to apply.  The controller
-  reads this file at startup so no hardcoded model name is needed.
-
-• Automatic re-detection — detected_flows stores a timestamp; entries
-  expire after DROP_HARD_TIMEOUT_S so a resumed attack is caught again.
-
-File layout expected at MODEL_DIR (/app/projects/):
-    model_info.json          ← manifest written by the notebook
-    model_rf.joblib          ← Random Forest
-    model_dt.joblib          ← Decision Tree
-    model_xgb.joblib         ← XGBoost (sklearn wrapper)
-    model_xgb.json           ← XGBoost (native, not loaded by this controller)
-    model_lgbm.joblib        ← LightGBM
-"""
-
 import json
 import os
 import time
-from typing import Dict, Optional, Tuple
 
 import joblib
 import numpy as np
@@ -53,11 +20,11 @@ from ryu.ofproto import ofproto_v1_3
 # ─────────────────────────────────────────────
 # CONFIG  (can be overridden via environment variables)
 # ─────────────────────────────────────────────
-MODEL_DIR = os.environ.get("MODEL_DIR", "/app/projects")
+MODEL_DIR = os.environ.get("MODEL_DIR", "/app/projects/models")
 MODEL_INFO_FILE = os.path.join(MODEL_DIR, "model_info.json")
 
 # Fallback values — the model_info.json overrides these at runtime
-DECISION_THRESHOLD = float(os.environ.get("DECISION_THRESHOLD", "0.45"))
+DECISION_THRESHOLD = float(os.environ.get("DECISION_THRESHOLD", "0.5"))
 MIN_PKTS_FOR_CLASSIFY = int(os.environ.get("MIN_PKTS", "5"))
 
 MONITOR_INTERVAL_S = 2  # seconds between flow-stats polls

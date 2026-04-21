@@ -1,42 +1,3 @@
-#!/usr/bin/env python3
-"""
-experiment.py — Automated Dual-Model IDS Experiment
-CS 8027: Advanced Networking Architecture
-
-FIXES vs original version
-──────────────────────────
-FIX-1  Log parser regex: Ryu writes plain lines with NO "HH:MM:SS | LEVEL |"
-       prefix. The old regex matched 0 lines. New regex looks only for
-       "[CLASSIFY]" and "ATTACK DETECTED" without any prefix requirement.
-
-FIX-2  Real-time log tailing: a background thread reads the Ryu log file
-       as it grows and stamps each event with the actual wall-clock time,
-       giving accurate relative timestamps instead of post-hoc parsing.
-
-FIX-3  Controller readiness check: instead of sleeping a fixed 4 seconds,
-       poll TCP port 6653 until it responds (or 30 s timeout). This
-       handles slow model loads (RF: 114 MB) without race conditions.
-
-FIX-4  Unbuffered Ryu output: PYTHONUNBUFFERED=1 env var ensures every
-       log line is flushed to the file immediately rather than buffered
-       until process exit.
-
-FIX-5  Short settle wait after pingall before starting iperf.
-
-Usage (must run as root inside the Docker container):
-    python3 /app/projects/experiment.py
-    python3 /app/projects/experiment.py --models insdn
-    python3 /app/projects/experiment.py --models mininet
-    python3 /app/projects/experiment.py --dry-run
-
-Output:
-    /app/projects/results/run_<timestamp>/
-        events.json        consumed by visualize.py
-        ryu_insdn.log      raw Ryu stdout+stderr (InSDN run)
-        ryu_mininet.log    raw Ryu stdout+stderr (Mininet run)
-        summary.txt        human-readable result summary
-"""
-
 import argparse
 import json
 import os
@@ -63,13 +24,15 @@ from mininet.log import setLogLevel
 from mininet.clean import cleanup as mn_cleanup
 
 # ── Config ────────────────────────────────────────────────────────────────────
-MODEL_DIR = os.environ.get("MODEL_DIR", "/app/projects")
-RESULTS_BASE_DIR = os.path.join(MODEL_DIR, "results")
+MODEL_DIR = os.environ.get("MODEL_DIR", "/app/projects/models")
+PROJECT_DIR = os.environ.get("PROJECT_DIR", "/app/projects")
+PROJECT_DIR = os.environ.get("PROJECT_DIR", "/app/projects")
+RESULTS_BASE_DIR = os.path.join(PROJECT_DIR, "results")
 MODEL_INFO_PATH = os.path.join(MODEL_DIR, "model_info.json")
 CONTROLLER_IP = "127.0.0.1"
 CONTROLLER_PORT = 6653
 RYU_MANAGER = shutil.which("ryu-manager") or "/usr/local/bin/ryu-manager"
-CONTROLLER_SCRIPT = os.path.join(MODEL_DIR, "controller.py")
+CONTROLLER_SCRIPT = os.path.join(PROJECT_DIR, "controller.py")
 
 PHASE_NORMAL_S = 30
 PHASE_ATTACK_S = 60
@@ -79,13 +42,13 @@ LINK_DELAY = "2ms"
 MODEL_CONFIGS = {
     "insdn": {
         "label": "InSDN Model (Real-Hardware Dataset)",
-        "winner": "Random Forest",
-        "winner_file": "model_rf.joblib",
+        "winner": "Decision Tree",
+        "winner_file": "model_dt.joblib",
     },
     "mininet": {
         "label": "Mininet Model (Emulation-Calibrated)",
-        "winner": "Random Forest (Mininet)",
-        "winner_file": "model_rf_mininet.joblib",
+        "winner": "Decision Tree(Mininet)",
+        "winner_file": "model_dt_mininet.joblib",
     },
 }
 
@@ -432,25 +395,6 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    log("Validating setup...")
-    ok = True
-    for name, path in [
-        ("ryu-manager", RYU_MANAGER),
-        ("controller.py", CONTROLLER_SCRIPT),
-        ("model_info.json", MODEL_INFO_PATH),
-        ("model_rf.joblib", os.path.join(MODEL_DIR, "model_dt.joblib")),
-        ("model_rf_mininet.joblib", os.path.join(MODEL_DIR, "model_rf_mininet.joblib")),
-    ]:
-        ex = path and os.path.exists(path)
-        log(f"  {'OK' if ex else '!!'} {name}")
-        if not ex:
-            ok = False
-    if not ok:
-        sys.exit("Missing files above.")
-    if args.dry_run:
-        log("Dry run OK.")
-        return
-
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = os.path.join(RESULTS_BASE_DIR, f"run_{ts}")
     os.makedirs(run_dir, exist_ok=True)
@@ -528,7 +472,7 @@ def main():
 
     log(f"\nEvents : {events_path}")
     log(
-        f"Visualize: python3 {os.path.join(MODEL_DIR, 'visualize.py')} --results {events_path}"
+        f"Visualize: python3 {os.path.join(PROJECT_DIR, 'visualize.py')} --results {events_path}"
     )
 
 
