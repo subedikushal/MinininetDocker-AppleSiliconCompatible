@@ -252,6 +252,7 @@ class MLController(app_manager.RyuApp):
                 kwargs["eth_dst"] = dst
 
             match = parser.OFPMatch(**kwargs)
+            # Sends a wildcard delete (removes ALL flows matching kwargs regardless of priority)
             mod = parser.OFPFlowMod(
                 datapath=dp,
                 command=ofp.OFPFC_DELETE,
@@ -275,17 +276,18 @@ class MLController(app_manager.RyuApp):
             try:
                 parser = dp.ofproto_parser
 
-                # 1. Drop all traffic FROM the attacker
+                # 1. Clean up existing forwarding entries BEFORE adding drop rules!
+                # If we do this after, OFPFC_DELETE will wipe out our new drop rules.
+                self._delete_forwarding_entry(dp, src=src_mac)
+                self._delete_forwarding_entry(dp, dst=src_mac)
+
+                # 2. Drop all traffic FROM the attacker
                 match_src = parser.OFPMatch(eth_src=src_mac)
                 self._add_flow(dp, 200, match_src, [], idle=0, hard=0)
 
-                # 2. Drop all traffic TO the attacker
+                # 3. Drop all traffic TO the attacker
                 match_dst = parser.OFPMatch(eth_dst=src_mac)
                 self._add_flow(dp, 200, match_dst, [], idle=0, hard=0)
-
-                # 3. Clean up existing forwarding entries to prevent fast-path caching
-                self._delete_forwarding_entry(dp, src=src_mac)
-                self._delete_forwarding_entry(dp, dst=src_mac)
 
             except Exception as e:
                 self.logger.error(
@@ -356,11 +358,13 @@ class MLController(app_manager.RyuApp):
                     dp.id,
                 )
 
-                # 1. Immediately drop this specific attack flow
-                self._drop_flow(dp, src, dst)
+                # 1. Delete existing forwarding rule FIRST so it doesn't overlap/erase the drop rule
                 self._delete_forwarding_entry(dp, src=src, dst=dst)
 
-                # 2. Execute the complete network-wide block of the attacker immediately
+                # 2. Immediately drop this specific attack flow
+                self._drop_flow(dp, src, dst)
+
+                # 3. Execute the complete network-wide block of the attacker immediately
                 if src not in self.banned_macs:
                     self.banned_macs.add(src)
                     self._ban_mac_network_wide(src)
