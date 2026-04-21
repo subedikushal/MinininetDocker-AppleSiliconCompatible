@@ -384,6 +384,7 @@ def fig_timeline_comparison(data, out_path):
             _, _, byts_atk, _ = extract_flow_series(evts, "h_attack")
             ax_bytes.plot(t_atk, byts_atk / 1e6, color=C_ATTACK, lw=2.0, zorder=4)
         mark_detection(ax_bytes, det, label=False)
+        ax_bytes.set_yscale("log")  # LOG SCALE ADDED HERE
         ax_bytes.set_ylabel("Flow Rate (MB/s)", fontsize=9)
         plt.setp(ax_bytes.get_xticklabels(), visible=False)
 
@@ -406,6 +407,7 @@ def fig_timeline_comparison(data, out_path):
                 t_atk, pkts_atk, width=1.6, color=C_ATTACK, alpha=0.65, zorder=4
             )
         mark_detection(ax_pkts, det, label=False)
+        ax_pkts.set_yscale("log")  # LOG SCALE ADDED HERE
         ax_pkts.set_ylabel("Pkts / interval", fontsize=9)
         ax_pkts.set_xlabel("Time (seconds)", fontsize=9)
         ax_pkts.set_xlim(0, total)
@@ -514,6 +516,7 @@ def fig_model_detail(run, out_path, pd):
             continue
         ax_bytes.plot(t, byts_s / 1e6, color=colour, lw=1.5 if src == "h_attack" else 1)
     mark_detection(ax_bytes, det, label=False)
+    ax_bytes.set_yscale("log")  # LOG SCALE ADDED HERE
     ax_bytes.set_ylabel("Byte Rate (MB/s)")
 
     # ── Panel 3: backward bytes (key feature for attack detection) ────────────
@@ -522,9 +525,10 @@ def fig_model_detail(run, out_path, pd):
     if atk_rows:
         t_bwd = np.array([e["rel_s"] for e in atk_rows])
         bwd = np.array([e["bwd_bytes"] for e in atk_rows])
+        # Changed 0 to 1e-4 so fill_between doesn't crash log scale
         ax_bwd.fill_between(
             t_bwd,
-            0,
+            1e-4,
             bwd / 1e6,
             color=C_ATTACK,
             alpha=0.4,
@@ -532,6 +536,7 @@ def fig_model_detail(run, out_path, pd):
         )
         ax_bwd.plot(t_bwd, bwd / 1e6, color=C_ATTACK, lw=1.5)
     mark_detection(ax_bwd, det, label=False)
+    ax_bwd.set_yscale("log")  # LOG SCALE ADDED HERE
     ax_bwd.set_ylabel("Bwd Bytes (MB)\n[key feature]")
 
     # ── Panel 4: packets ──────────────────────────────────────────────────────
@@ -542,6 +547,7 @@ def fig_model_detail(run, out_path, pd):
             continue
         ax_pkts.bar(t, pkts, width=1.5, color=colour, alpha=0.6)
     mark_detection(ax_pkts, det, label=False)
+    ax_pkts.set_yscale("log")  # LOG SCALE ADDED HERE
     ax_pkts.set_ylabel("Pkts / interval")
     ax_pkts.set_xlabel("Experiment Time (seconds)")
     ax_pkts.set_xlim(0, total)

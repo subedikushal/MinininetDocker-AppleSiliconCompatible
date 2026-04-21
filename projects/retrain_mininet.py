@@ -40,7 +40,7 @@ except ImportError:
     print("WARNING: lightgbm not installed -- LightGBM will be skipped.")
 
 # ── Config ────────────────────────────────────────────────────────────────────
-MODEL_DIR = os.environ.get("MODEL_DIR", "/app/projects/mininet_models/")
+MODEL_DIR = os.environ.get("MODEL_DIR", "/app/projects/models/")
 SEED = 42
 rng = np.random.default_rng(SEED)
 THRESHOLD = 0.45
