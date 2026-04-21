@@ -30,9 +30,18 @@ RUN apt-get update && apt-get install -y \
     sudo \
     nano \
     vim \
-    iperf \
     tcpreplay \
-    openvswitch-switch \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install TeX Live and related dependencies for Matplotlib LaTeX rendering
+# cm-super, dvipng, and ghostscript are explicitly required by Matplotlib's usetex engine
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    texlive-latex-base \
+    texlive-fonts-recommended \
+    texlive-latex-extra \
+    cm-super \
+    dvipng \
+    ghostscript \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies with eventlet version that has ALREADY_HANDLED
@@ -42,9 +51,14 @@ RUN pip3 install --no-cache-dir \
     routes>=2.5.1 \
     webob>=1.8.7 \
     scikit-learn \
+    numpy \
     pandas \
     joblib \
-    numpy
+    matplotlib \
+    xgboost \
+    lightgbm \
+    tqdm \
+    seaborn
 
 # Manual Mininet Python 3 installation approach
 # Install required system packages first
@@ -55,7 +69,6 @@ RUN apt-get update && apt-get install -y \
     gcc \
     libc6-dev \
     python3-distutils \
-    python3-setuptools \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Mininet Python modules and executables manually
@@ -79,7 +92,6 @@ WORKDIR /app
 
 # Copy startup script and examples
 COPY start_services.sh /app/start_services.sh
-COPY examples/ /app/examples/
 RUN chmod +x /app/start_services.sh
 
 # Create python symlink for compatibility with mn command

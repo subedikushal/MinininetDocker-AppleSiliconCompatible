@@ -16,3 +16,6 @@ Thumbs.db
 *.tmp
 *.temp
 *.pyc
+
+models/
+*_old.*
