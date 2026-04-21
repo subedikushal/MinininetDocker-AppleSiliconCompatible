@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.gridspec as gridspec
 from matplotlib.lines import Line2D
-from matplotlib.patches import FancyArrowPatch
 import numpy as np
 
 # ── Plot theme ─────────────────────────────────────────────────────────────────
@@ -229,8 +228,6 @@ def shade_phases(ax, pt, total):
     ax.axvspan(0, pt["attack_start"], color=C_PHASE_N, zorder=0)
     ax.axvspan(pt["attack_start"], pt["recovery_start"], color=C_PHASE_A, zorder=0)
     ax.axvspan(pt["recovery_start"], total, color=C_PHASE_R, zorder=0)
-    # Phase labels at top
-    y_top = ax.get_ylim()[1]
     kw = dict(fontsize=7.5, alpha=0.65, va="top", transform=ax.get_xaxis_transform())
     ax.text(
         (0 + pt["attack_start"]) / 2,

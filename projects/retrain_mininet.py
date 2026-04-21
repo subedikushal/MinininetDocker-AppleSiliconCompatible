@@ -16,12 +16,11 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
     accuracy_score,
-    classification_report,
     f1_score,
     roc_auc_score,
 )
 from sklearn.model_selection import train_test_split
-from sklearn.tree import DecisionTreeClassifier, export_text
+from sklearn.tree import DecisionTreeClassifier
 
 try:
     from xgboost import XGBClassifier
@@ -273,7 +272,7 @@ def main():
     os.makedirs(MODEL_DIR, exist_ok=True)
 
     # ── 1. Generate synthetic dataset ─────────────────────────────────────────
-    print(f"\nGenerating synthetic flow samples (~20% Normal / ~80% Attack)...")
+    print("\nGenerating synthetic flow samples (~20% Normal / ~80% Attack)...")
 
     # 20,000 Normal Records
     X_normal = np.vstack(
@@ -315,18 +314,32 @@ def main():
     )
 
     print(f"\n  Train : {len(X_train):,}  |  Test : {len(X_test):,}")
-    print(f"  Saving train/test datasets to CSV...")
+    print("  Saving train/test datasets to CSV...")
 
     header_str = ",".join(FEATURE_NAMES + ["Label"])
 
     # Define formats: 9 float columns (%.6f), 1 integer column (%d)
-    column_formats = ['%.6f'] * 9 + ['%d']
+    column_formats = ["%.6f"] * 9 + ["%d"]
 
     train_data = np.hstack((X_train, y_train.reshape(-1, 1)))
-    np.savetxt(os.path.join(MODEL_DIR, "train_data.csv"), train_data, delimiter=",", header=header_str, comments="", fmt=column_formats)
-    
+    np.savetxt(
+        os.path.join(MODEL_DIR, "train_data.csv"),
+        train_data,
+        delimiter=",",
+        header=header_str,
+        comments="",
+        fmt=column_formats,
+    )
+
     test_data = np.hstack((X_test, y_test.reshape(-1, 1)))
-    np.savetxt(os.path.join(MODEL_DIR, "test_data.csv"), test_data, delimiter=",", header=header_str, comments="", fmt=column_formats)
+    np.savetxt(
+        os.path.join(MODEL_DIR, "test_data.csv"),
+        test_data,
+        delimiter=",",
+        header=header_str,
+        comments="",
+        fmt=column_formats,
+    )
 
     print(f"  Saved -> {os.path.join(MODEL_DIR, 'train_data.csv')}")
     print(f"  Saved -> {os.path.join(MODEL_DIR, 'test_data.csv')}")
